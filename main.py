@@ -1,39 +1,59 @@
-from playwright.sync_api import sync_playwright
+import tweepy
+import json
+from keys import Bearer_token as token
 
 
-def scrape_tweet(url: str) -> dict:
-    """
-    Scrape a single tweet page for Tweet thread e.g.:
-    https://twitter.com/Scrapfly_dev/status/1667013143904567296
-    Return parent tweet, reply tweets and recommended tweets
-    """
-    _xhr_calls = []
+# Личный токен, можно просто вставить строкой
+BEARER_TOKEN = token
 
-    def intercept_response(response):
-        """capture all background requests and save them"""
-        # we can extract details from background requests
-        if response.request.resource_type == "xhr":
-            _xhr_calls.append(response)
-        return response
+# Инициализация клиента Twitter API v2
+client = tweepy.Client(bearer_token=BEARER_TOKEN)
 
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=False)
-        context = browser.new_context(viewport={"width": 1920, "height": 1080})
-        page = context.new_page()
+def get_user_info(username, mode):
+    try:
+        # Используем эндпоинт GET /2/users/by/username/{username}
+        response = client.get_user(username=username, user_fields=["name", "description", "public_metrics"])
 
-        # enable background request intercepting:
-        page.on("response", intercept_response)
-        # go to url and wait for the page to load
-        page.goto(url)
-        page.wait_for_selector("[data-testid='tweet']")
+        # Проверяем, что запрос успешен
+        if response.data:
+            user = response.data
+            user_data = {
+                "name": user.name,
+                "username": user.username,
+                "description": user.description,
+                "followers_count": user.public_metrics["followers_count"],
+                "tweet_count": user.public_metrics["tweet_count"]
+            }
+            if mode == "write":
+                filename = username + ".json"
+                with open(filename, "w", encoding="utf-8") as file:
+                    json.dump(user_data, file, ensure_ascii=False, indent=4)
+            else:
+                if mode != "show":
+                    print("Неизвестный режим, выбран режим по умолчанию")
+                print(user_data)
+        else:
+            print("Пользователь не найден.")
+    except tweepy.errors.TweepyException:
+        print("Закончились доступные обращения, подождите пока количество обращений не восстановится")
+    except Exception:
+        print("Неизвестная ошибка, попробуйте проверить подключение к сети")
 
-        # find all tweet background requests:
-        tweet_calls = [f for f in _xhr_calls if "TweetResultByRestId" in f.url]
-        for xhr in tweet_calls:
-            data = xhr.json()
-            return data['data']['tweetResult']['result']
 
 
-
-if __name__ == "__main__":
-    print(scrape_tweet("https://twitter.com/Scrapfly_dev/status/1664267318053179398"))
+while True:    # Менюшка
+    print("МЕНЮ:\nИнформация - i\nИскать пользователя - s\nВыход - q")
+    respond = str(input())
+    if respond == "q":
+        break
+    elif respond == "s":
+        print("Введите имя пользователя:")
+        username = input()
+        print("Выберите режим (write/show)")
+        mode = input()
+        get_user_info(username, mode)
+    elif respond == "i":
+        print("Краткая информация: Эта программа использует API v2 сайта x.com, что позволяет совершать 3 запроса каждые 15 минут\nЕсли такой пользователь существует, в ответ будут получены:\n1)Имя\n2)Никнейм\n3)Краткое описание\n4)Количество подписчиков\n5)Количество твитов")
+    else:
+        print("Неверный вариант")
+        continue

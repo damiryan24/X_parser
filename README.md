@@ -1,2 +1,5 @@
-# X_parser_with_db
-Parser of X.com with integrated database
+## X_users_parser
+Парсер сайта x.com \
+Необходим bearer token для работы \
+Может выполнять до 3 запросов раз в 15 минут \
+В качестве результата выдаёт основеую информацию о запрошенном пользователе
